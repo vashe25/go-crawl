@@ -3,7 +3,9 @@ package webcrawler
 import (
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
+	"net/http"
 	str "strings"
+	"time"
 )
 
 type WebCrawler struct {
@@ -58,8 +60,36 @@ func (this *WebCrawler) processUrl(url string) {
 }
 
 func (this *WebCrawler) getLinks(url string) (items map[string]string, e error) {
+	time.Sleep(500 * time.Millisecond)
+
 	items = make(map[string]string)
-	doc, e := goquery.NewDocument(url)
+
+	response, e := http.Get(url)
+
+	if e != nil {
+		return items, e
+	}
+
+	if response.StatusCode == 503 {
+
+		fmt.Println("sleep:", url)
+		time.Sleep(2000 * time.Millisecond)
+
+		response, e = http.Get(url)
+
+		if e != nil {
+			return items, e
+		}
+	}
+
+	if response.StatusCode >= 400 {
+		e = fmt.Errorf("%d | %s", response.StatusCode, url)
+		return
+	}
+
+	defer response.Body.Close()
+
+	doc, e := goquery.NewDocumentFromReader(response.Body)
 
 	if e != nil {
 		return

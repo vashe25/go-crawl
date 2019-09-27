@@ -40,7 +40,7 @@ func main() {
 	}
 
 	var formated string
-	now := time.Unix(0, 0).UTC()
+	now := time.Now().Local()
 
 	for _, config := range configs {
 
