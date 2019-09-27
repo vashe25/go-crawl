@@ -5,20 +5,20 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"net/http"
 	str "strings"
-	"time"
 )
 
 type WebCrawler struct {
-	base  string
-	links map[string]string
+	base    string
+	links   map[string]string
+	visited map[string]string
 }
 
 func (this *WebCrawler) Run(base string) {
 	this.base = base
 	this.links = make(map[string]string)
-	this.links["/"] = "/"
+	this.visited = make(map[string]string)
 
-	this.processUrl(this.base + "/")
+	this.processUrl("/")
 }
 
 func (this *WebCrawler) Print() {
@@ -34,9 +34,8 @@ func (this *WebCrawler) GetLinks() map[string]string {
 }
 
 func (this *WebCrawler) AddLink(url string) bool {
-	if this.links[url] == "" {
-		this.links[url] = url
-		this.processUrl(this.base + url)
+	if this.visited[url] == "" {
+		this.processUrl(url)
 		return true
 	}
 
@@ -45,22 +44,29 @@ func (this *WebCrawler) AddLink(url string) bool {
 
 func (this *WebCrawler) processUrl(url string) {
 
-	items, e := this.getLinks(url)
+	if this.visited[url] != "" {
+		return
+	}
+
+	this.visited[url] = url
+
+	items, e := this.getLinks(this.base + url)
 	if e != nil {
 		fmt.Println(e)
 		return
 	}
 
+	this.links[url] = url
+
 	for k, v := range items {
-		if this.links[k] == "" {
-			this.links[k] = v
-			this.processUrl(this.base + v)
+		if this.visited[k] == "" {
+			this.processUrl(v)
 		}
 	}
 }
 
 func (this *WebCrawler) getLinks(url string) (items map[string]string, e error) {
-	time.Sleep(500 * time.Millisecond)
+	// time.Sleep(1000 * time.Millisecond)
 
 	items = make(map[string]string)
 
@@ -68,18 +74,6 @@ func (this *WebCrawler) getLinks(url string) (items map[string]string, e error) 
 
 	if e != nil {
 		return items, e
-	}
-
-	if response.StatusCode == 503 {
-
-		fmt.Println("sleep:", url)
-		time.Sleep(2000 * time.Millisecond)
-
-		response, e = http.Get(url)
-
-		if e != nil {
-			return items, e
-		}
 	}
 
 	if response.StatusCode >= 400 {
