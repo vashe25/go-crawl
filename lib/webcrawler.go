@@ -66,7 +66,8 @@ func (this *WebCrawler) processUrl(url string) {
 }
 
 func (this *WebCrawler) getLinks(url string) (items map[string]string, e error) {
-	// time.Sleep(1000 * time.Millisecond)
+	// throttler
+	// time.Sleep(2 * time.Millisecond)
 
 	items = make(map[string]string)
 
@@ -74,32 +75,32 @@ func (this *WebCrawler) getLinks(url string) (items map[string]string, e error) 
 
 	if e != nil {
 		return items, e
-	}
+	} else {
+		defer response.Body.Close()
 
-	if response.StatusCode >= 400 {
-		e = fmt.Errorf("%d | %s", response.StatusCode, url)
-		return
-	}
+		if response.StatusCode >= 400 {
+			e = fmt.Errorf("%d | %s", response.StatusCode, url)
+			return
+		}
 
-	defer response.Body.Close()
+		doc, e := goquery.NewDocumentFromReader(response.Body)
 
-	doc, e := goquery.NewDocumentFromReader(response.Body)
+		if e != nil {
+			return items, e
+		}
 
-	if e != nil {
-		return
-	}
-
-	doc.Find("a").Each(func(i int, s *goquery.Selection) {
-		if href, ok := s.Attr("href"); ok {
-			if url, ok := this.filterLinks(href); ok {
-				if items[url] == "" {
-					items[url] = url
+		doc.Find("a").Each(func(i int, s *goquery.Selection) {
+			if href, ok := s.Attr("href"); ok {
+				if url, ok := this.filterLinks(href); ok {
+					if items[url] == "" {
+						items[url] = url
+					}
 				}
 			}
-		}
-	})
+		})
 
-	return
+		return items, e
+	}
 }
 
 func (this *WebCrawler) filterLinks(url string) (string, bool) {
@@ -127,13 +128,9 @@ func (this *WebCrawler) filterLinks(url string) (string, bool) {
 
 	if url == "" ||
 		!str.HasPrefix(url, "/") ||
-		// str.HasPrefix(url, "http") ||
-		// str.HasPrefix(url, "javascript") ||
-		// str.HasPrefix(url, "tel") ||
-		// str.HasPrefix(url, "callto") ||
-		// str.HasPrefix(url, "mailto") ||
 		str.HasPrefix(url, "/upload") ||
 		str.HasPrefix(url, "/document.php") ||
+		str.HasPrefix(url, "/review/?") ||
 		str.HasSuffix(url, ".pdf") {
 
 		ok = false

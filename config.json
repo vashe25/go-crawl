@@ -1,18 +1,9 @@
 [
-
 	{
 		"baseUrl": "https://perm.medsi.ru",
 		"pathXml": "/Users/vashe/web/go-crawl/sitemap_perm/",
 		"add": [
 
-		]
-	},
-	{
-		"baseUrl": "https://medsi.ru",
-		"pathXml": "/Users/vashe/web/go-crawl/sitemap/",
-		"add": [
-			"/lands/uzi-ultrasonic-diagnostic.php",
-			"/lands/vyzov-vracha-na-dom.php"
 		]
 	}
 ]
