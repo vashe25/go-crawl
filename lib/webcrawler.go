@@ -1,3 +1,7 @@
+/*
+WebCrawler - package is used for recursive walking by host
+and collecting links.
+*/
 package webcrawler
 
 import (
@@ -5,22 +9,45 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"net/http"
 	str "strings"
+	"regexp"
 )
 
+/*
+base - is host
+links - collection of good urls
+visited - collection of all visited urls, a wayout from recursion.
+*/
 type WebCrawler struct {
 	base    string
 	links   map[string]string
 	visited map[string]string
+	client  *http.Client
+	filterRules []string
 }
 
+/*
+Loads rules to skip or filter urls
+*/
+func (this *WebCrawler) LoadFilterRules(filterRules []string) {
+	this.filterRules = filterRules
+}
+
+/*
+Main method to start crawling.
+base - must be in a "http://host" format.
+*/
 func (this *WebCrawler) Run(base string) {
 	this.base = base
 	this.links = make(map[string]string)
 	this.visited = make(map[string]string)
+	this.client = &http.Client{}
 
 	this.processUrl("/")
 }
 
+/*
+Simply prints links map into stdout.
+*/
 func (this *WebCrawler) Print() {
 	for _, v := range this.links {
 		if v != "" {
@@ -29,19 +56,74 @@ func (this *WebCrawler) Print() {
 	}
 }
 
+/*
+Returns a map of links.
+*/
 func (this *WebCrawler) GetLinks() map[string]string {
 	return this.links
 }
 
-func (this *WebCrawler) AddLink(url string) bool {
-	if this.visited[url] == "" {
-		this.processUrl(url)
-		return true
+/*
+Slice links map into chunks.
+Mainly used for creating index sitemap.xml and sitemap-%d.xml
+*/
+func (this *WebCrawler) GetChunked(size int) map[int][]string {
+	if size == 0 {
+		size = 5000
 	}
 
-	return false
+	chunks := make(map[int][]string)
+
+	i := 0
+	j := 0
+	for link := range this.links {
+		chunks[i] = append(chunks[i], link)
+
+		if j == size {
+			j = 0
+			i++
+		} else {
+			j++
+		}
+	}
+
+	return chunks
 }
 
+/*
+Adds url into links map and starts crawling.
+*/
+func (this *WebCrawler) AddLink(url string) {
+	this.processUrl(url)
+}
+
+/*
+Starts crawling from url, but not adds url into links map.
+*/
+func (this *WebCrawler) GetLinksFromUrl(url string) {
+	if this.visited[url] != "" {
+		return
+	}
+
+	this.visited[url] = url
+
+	items, e := this.getLinks(this.base + url)
+	if e != nil {
+		fmt.Println(e)
+		return
+	}
+
+	for k, v := range items {
+		if this.visited[k] == "" {
+			this.processUrl(v)
+		}
+	}
+}
+
+/*
+Core of Webcrawler.
+Processing url.
+*/
 func (this *WebCrawler) processUrl(url string) {
 
 	if this.visited[url] != "" {
@@ -65,13 +147,24 @@ func (this *WebCrawler) processUrl(url string) {
 	}
 }
 
+/*
+Get document. Checks status code. Parse document body. Returns found links.
+*/
 func (this *WebCrawler) getLinks(url string) (items map[string]string, e error) {
 	// throttler
 	// time.Sleep(2 * time.Millisecond)
 
 	items = make(map[string]string)
 
-	response, e := http.Get(url)
+	request, e := http.NewRequest("GET", url, nil)
+
+	if e != nil {
+		return items, e
+	}
+
+	request.Header.Add("User-Agent", "GO-Crawl")
+
+	response, e := this.client.Do(request)
 
 	if e != nil {
 		return items, e
@@ -91,7 +184,7 @@ func (this *WebCrawler) getLinks(url string) (items map[string]string, e error) 
 
 		doc.Find("a").Each(func(i int, s *goquery.Selection) {
 			if href, ok := s.Attr("href"); ok {
-				if url, ok := this.filterLinks(href); ok {
+				if url, ok := this.filterLink(href); ok {
 					if items[url] == "" {
 						items[url] = url
 					}
@@ -103,7 +196,11 @@ func (this *WebCrawler) getLinks(url string) (items map[string]string, e error) 
 	}
 }
 
-func (this *WebCrawler) filterLinks(url string) (string, bool) {
+/*
+Filter.
+A place for rules to skip link.
+*/
+func (this *WebCrawler) filterLink(url string) (string, bool) {
 	ok := true
 
 	url = str.TrimSpace(url)
@@ -117,6 +214,12 @@ func (this *WebCrawler) filterLinks(url string) (string, bool) {
 
 	// drop anchor
 	pos = str.Index(url, "#")
+
+	// check utm params
+	if str.Contains(url, "utm") {
+		pos = str.Index(url, "?")
+	}
+
 	if pos == 0 {
 		ok = false
 		return url, ok
@@ -126,15 +229,20 @@ func (this *WebCrawler) filterLinks(url string) (string, bool) {
 		url = url[0:pos]
 	}
 
-	if url == "" ||
-		!str.HasPrefix(url, "/") ||
-		str.HasPrefix(url, "/upload") ||
-		str.HasPrefix(url, "/document.php") ||
-		str.HasPrefix(url, "/review/?") ||
-		str.HasSuffix(url, ".pdf") {
-
+	if url == "" || !str.HasPrefix(url, "/") {
 		ok = false
 		return url, ok
+	}
+
+	for _, r := range this.filterRules {
+		matched, e := regexp.MatchString(r, url)
+		if e != nil {
+			panic(e)
+		}
+		if matched {
+			ok = false
+			return url, ok
+		}
 	}
 
 	return url, ok

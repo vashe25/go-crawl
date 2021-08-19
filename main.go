@@ -13,20 +13,43 @@ import (
 )
 
 type Config struct {
-	BaseUrl string   `json: "baseUrl"`
-	PathXml string   `json: "pathXml"`
-	Add     []string `json: "add"`
+	BaseUrl        string   `json: "baseUrl"`
+	SitemapUrlPath string   `json: "sitemapUrlPath"`
+	SitemapPath    string   `json: "sitemapPath"`
+	GetFrom        []string `json: "getFrom"`
+	FilterRules        []string `json: "filterRules"`
 }
 
-func main() {
+func createPath(path string) string {
+	var result string
 
-	dir, e := filepath.Abs(filepath.Dir(os.Args[0]))
+	if str.HasPrefix(path, ".") {
+		currentDir, e := filepath.Abs(filepath.Dir(os.Args[0]))
+
+		if e != nil {
+			panic(e)
+		}
+
+		result = currentDir + "/"
+	}
+
+	result = result + path
+	result, e := filepath.Abs(result)
 
 	if e != nil {
 		panic(e)
 	}
 
-	jsonFile, e := os.Open(dir + "/config.json")
+	// check if dir exist
+	if _, e := os.Stat(result); os.IsNotExist(e) {
+		os.MkdirAll(result, 0775)
+	}
+
+	return result
+}
+
+func loadConfig(path string) []Config {
+	jsonFile, e := os.Open(path)
 
 	if e != nil {
 		panic(e)
@@ -47,74 +70,93 @@ func main() {
 		panic("Bad configs")
 	}
 
-	var formated string
-	now := time.Now().Local()
+	return configs
+}
 
-	for _, config := range configs {
-
-		t := time.Now()
-
-		formated = fmt.Sprintf("[%02d:%02d:%02d]", t.Hour(), t.Minute(), t.Second())
-
-		fmt.Println(formated, "crawling:", config.BaseUrl)
-
-		crawler := new(webcrawler.WebCrawler)
-
-		crawler.Run(config.BaseUrl)
-
-		for _, url := range config.Add {
-			crawler.AddLink(url)
-		}
-
-		// create sitemap
-		sm := sitemap.New()
-
-		for _, link := range crawler.GetLinks() {
-			sm.Add(&sitemap.URL{
-				Loc:        config.BaseUrl + link,
-				LastMod:    &now,
-				ChangeFreq: sitemap.Daily,
-			})
-
-		}
-
-		var xmlPath string
-
-		if str.HasPrefix(config.PathXml, ".") {
-			xmlPath = dir + "/"
-		}
-
-		xmlPath = xmlPath + config.PathXml
-		xmlPath, e := filepath.Abs(xmlPath)
-
-		if e != nil {
-			panic(e)
-		}
-
-		// check if dir exist
-		if _, e := os.Stat(xmlPath); os.IsNotExist(e) {
-			os.MkdirAll(xmlPath, 0775)
-		}
-
-		// write sitemap.xml
-		file, e := os.Create(xmlPath + "/sitemap.xml")
-
-		if e != nil {
-			panic(e)
-		}
-
-		defer file.Close()
-
-		t = time.Now()
-		formated = fmt.Sprintf("[%02d:%02d:%02d]", t.Hour(), t.Minute(), t.Second())
-		fmt.Println(formated, "writing:", xmlPath + "/sitemap.xml")
-
-		sm.WriteTo(file)
-
+func main() {
+	currentDir, e := filepath.Abs(filepath.Dir(os.Args[0]))
+	if e != nil {
+		panic(e)
 	}
 
-	end := time.Now()
-	formated = fmt.Sprintf("[%02d:%02d:%02d]", end.Hour(), end.Minute(), end.Second())
-	fmt.Println(formated, "Done")
+	now := time.Now().Local().Format("2006-01-02")
+
+	configs := loadConfig(currentDir + "/config.json")
+
+	for _, config := range configs {
+		crawler := new(webcrawler.WebCrawler)
+		crawler.LoadFilterRules(config.FilterRules)
+		crawler.Run(config.BaseUrl)
+
+		for _, url := range config.GetFrom {
+			crawler.GetLinksFromUrl(url)
+		}
+
+		sitemapPath := createPath(config.SitemapPath)
+
+		chunkedData := crawler.GetChunked(5000)
+		countChunks := len(chunkedData)
+
+		if countChunks > 1 {
+			// create sitemap index
+			smi := sitemap.NewSitemapIndex()
+			for i := 0; i < countChunks; i++ {
+				smi.Add(&sitemap.URL{
+					Loc:     fmt.Sprintf("%v%vsitemap-%v.xml", config.BaseUrl, config.SitemapUrlPath, i),
+					LastMod: now,
+				})
+			}
+
+			file, e := os.Create(sitemapPath + "/sitemap.xml")
+			if e != nil {
+				panic(e)
+			}
+
+			defer file.Close()
+			smi.WriteTo(file)
+
+			// create sitemaps
+			for i := 0; i < countChunks; i++ {
+				sm := sitemap.New()
+
+				for _, link := range chunkedData[i] {
+					sm.Add(&sitemap.URL{
+						Loc:        config.BaseUrl + link,
+						LastMod:    now,
+						ChangeFreq: sitemap.Daily,
+					})
+
+				}
+
+				file, e := os.Create(fmt.Sprintf("%v/sitemap-%v.xml", sitemapPath, i))
+				if e != nil {
+					panic(e)
+				}
+
+				defer file.Close()
+				sm.WriteTo(file)
+			}
+		} else {
+			// create sitemap
+			sm := sitemap.New()
+
+			for _, link := range chunkedData[0] {
+				sm.Add(&sitemap.URL{
+					Loc:        config.BaseUrl + link,
+					LastMod:    now,
+					ChangeFreq: sitemap.Daily,
+				})
+
+			}
+
+			file, e := os.Create(sitemapPath + "/sitemap.xml")
+			if e != nil {
+				panic(e)
+			}
+
+			defer file.Close()
+			sm.WriteTo(file)
+		}
+	}
 
 }

@@ -1,9 +1,18 @@
 [
-	{
-		"baseUrl": "https://perm.medsi.ru",
-		"pathXml": "/Users/vashe/web/go-crawl/sitemap_perm/",
-		"add": [
-
-		]
-	}
+  {
+    "baseUrl": "http://localhost.local",
+    "sitemapUrlPath": "/sitemaps/",
+    "sitemapPath": "~/web/go-crawl/sitemap/",
+    "getFrom": [
+    ],
+    "filterRules": [
+      "^/about/press-centr/press-relize",
+      "special_version",
+      "^/upload",
+      "^/document.php",
+      "^/review/\\?",
+      "\\.pdf",
+      "\\.PDF"
+    ]
+  }
 ]
