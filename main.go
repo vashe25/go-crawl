@@ -1,10 +1,10 @@
 package main
 
 import (
-	"./lib"
 	"encoding/json"
 	"fmt"
 	"github.com/snabb/sitemap"
+	webcrawler "go-crawl/lib"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -17,7 +17,7 @@ type Config struct {
 	SitemapUrlPath string   `json: "sitemapUrlPath"`
 	SitemapPath    string   `json: "sitemapPath"`
 	GetFrom        []string `json: "getFrom"`
-	FilterRules        []string `json: "filterRules"`
+	FilterRules    []string `json: "filterRules"`
 }
 
 func createPath(path string) string {
@@ -79,7 +79,7 @@ func main() {
 		panic(e)
 	}
 
-	now := time.Now().Local().Format("2006-01-02")
+	now := time.Now().Local()
 
 	configs := loadConfig(currentDir + "/config.json")
 
@@ -103,7 +103,7 @@ func main() {
 			for i := 0; i < countChunks; i++ {
 				smi.Add(&sitemap.URL{
 					Loc:     fmt.Sprintf("%v%vsitemap-%v.xml", config.BaseUrl, config.SitemapUrlPath, i),
-					LastMod: now,
+					LastMod: &now,
 				})
 			}
 
@@ -122,7 +122,7 @@ func main() {
 				for _, link := range chunkedData[i] {
 					sm.Add(&sitemap.URL{
 						Loc:        config.BaseUrl + link,
-						LastMod:    now,
+						LastMod:    &now,
 						ChangeFreq: sitemap.Daily,
 					})
 
@@ -143,7 +143,7 @@ func main() {
 			for _, link := range chunkedData[0] {
 				sm.Add(&sitemap.URL{
 					Loc:        config.BaseUrl + link,
-					LastMod:    now,
+					LastMod:    &now,
 					ChangeFreq: sitemap.Daily,
 				})
 

@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
 	"net/http"
-	str "strings"
 	"regexp"
+	str "strings"
 )
 
 /*
@@ -18,10 +18,10 @@ links - collection of good urls
 visited - collection of all visited urls, a wayout from recursion.
 */
 type WebCrawler struct {
-	base    string
-	links   map[string]string
-	visited map[string]string
-	client  *http.Client
+	base        string
+	links       map[string]string
+	visited     map[string]string
+	client      *http.Client
 	filterRules []string
 }
 
