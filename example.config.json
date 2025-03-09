@@ -1,0 +1,14 @@
+[
+  {
+    "baseUrl": "http://localhost.local",
+    "sitemapUrlPath": "/sitemaps/",
+    "sitemapPath": "./sitemap/",
+    "getFrom": [
+    ],
+    "filterRules": [
+      "^/storage",
+      "\\.pdf",
+      "\\.PDF"
+    ]
+  }
+]

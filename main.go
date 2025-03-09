@@ -1,119 +1,67 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/snabb/sitemap"
-	webcrawler "go-crawl/lib"
-	"io/ioutil"
+	"go-crawl/config"
+	webcrawler "go-crawl/crawler"
+	"go-crawl/logger"
+	"go-crawl/utility"
 	"os"
-	"path/filepath"
-	str "strings"
 	"time"
 )
 
-type Config struct {
-	BaseUrl        string   `json: "baseUrl"`
-	SitemapUrlPath string   `json: "sitemapUrlPath"`
-	SitemapPath    string   `json: "sitemapPath"`
-	GetFrom        []string `json: "getFrom"`
-	FilterRules    []string `json: "filterRules"`
-}
-
-func createPath(path string) string {
-	var result string
-
-	if str.HasPrefix(path, ".") {
-		currentDir, e := filepath.Abs(filepath.Dir(os.Args[0]))
-
-		if e != nil {
-			panic(e)
-		}
-
-		result = currentDir + "/"
-	}
-
-	result = result + path
-	result, e := filepath.Abs(result)
-
-	if e != nil {
-		panic(e)
-	}
-
-	// check if dir exist
-	if _, e := os.Stat(result); os.IsNotExist(e) {
-		os.MkdirAll(result, 0775)
-	}
-
-	return result
-}
-
-func loadConfig(path string) []Config {
-	jsonFile, e := os.Open(path)
-
-	if e != nil {
-		panic(e)
-	}
-
-	defer jsonFile.Close()
-
-	byteValue, e := ioutil.ReadAll(jsonFile)
-
-	if e != nil {
-		panic(e)
-	}
-
-	var configs []Config
-	json.Unmarshal([]byte(byteValue), &configs)
-
-	if len(configs) == 0 {
-		panic("Bad configs")
-	}
-
-	return configs
-}
-
 func main() {
-	currentDir, e := filepath.Abs(filepath.Dir(os.Args[0]))
-	if e != nil {
-		panic(e)
+	currentDir, err := utility.CurrentDir()
+	if err != nil {
+		utility.Exit(err)
+	}
+
+	configs, err := config.LoadConfig(currentDir + "/config.json")
+	if err != nil {
+		utility.Exit(err)
 	}
 
 	now := time.Now().Local()
-
-	configs := loadConfig(currentDir + "/config.json")
-
-	for _, config := range configs {
-		crawler := new(webcrawler.WebCrawler)
-		crawler.LoadFilterRules(config.FilterRules)
-		crawler.Run(config.BaseUrl)
-
-		for _, url := range config.GetFrom {
-			crawler.GetLinksFromUrl(url)
+	for _, conf := range configs {
+		crawler, err := webcrawler.NewWebCrawler(conf.GetBaseUrl(), conf.GetFilterRules())
+		if err != nil {
+			utility.Exit(err)
 		}
+		logger.Log("[main] crawling '%s'", conf.GetBaseUrl())
+		for _, url := range conf.GetGetFrom() {
+			crawler.CheckAdditionalURL(url)
+		}
+		crawler.Run()
 
-		sitemapPath := createPath(config.SitemapPath)
+		var sitemapPath string
+		sitemapPath, err = utility.MakeDir(conf.GetSitemapPath())
+		if err != nil {
+			utility.Exit(err)
+		}
 
 		chunkedData := crawler.GetChunked(5000)
 		countChunks := len(chunkedData)
 
+		logger.Log("[main] collected %d chunks", countChunks)
+		logger.Log("[main] writting sitemap '%s'", conf.GetBaseUrl())
 		if countChunks > 1 {
 			// create sitemap index
 			smi := sitemap.NewSitemapIndex()
 			for i := 0; i < countChunks; i++ {
 				smi.Add(&sitemap.URL{
-					Loc:     fmt.Sprintf("%v%vsitemap-%v.xml", config.BaseUrl, config.SitemapUrlPath, i),
+					Loc:     fmt.Sprintf("%v%vsitemap-%v.xml", conf.GetBaseUrl(), conf.GetSitemapUrlPath(), i),
 					LastMod: &now,
 				})
 			}
 
-			file, e := os.Create(sitemapPath + "/sitemap.xml")
-			if e != nil {
-				panic(e)
+			file, err := os.Create(sitemapPath + "/sitemap.xml")
+			if err != nil {
+				utility.Exit(err)
 			}
 
-			defer file.Close()
 			smi.WriteTo(file)
+			file.Close()
 
 			// create sitemaps
 			for i := 0; i < countChunks; i++ {
@@ -121,20 +69,20 @@ func main() {
 
 				for _, link := range chunkedData[i] {
 					sm.Add(&sitemap.URL{
-						Loc:        config.BaseUrl + link,
+						Loc:        conf.GetBaseUrl() + link,
 						LastMod:    &now,
 						ChangeFreq: sitemap.Daily,
 					})
 
 				}
 
-				file, e := os.Create(fmt.Sprintf("%v/sitemap-%v.xml", sitemapPath, i))
-				if e != nil {
-					panic(e)
+				file, err := os.Create(fmt.Sprintf("%vsitemap-%v.xml", sitemapPath, i))
+				if err != nil {
+					panic(err)
 				}
 
-				defer file.Close()
 				sm.WriteTo(file)
+				file.Close()
 			}
 		} else {
 			// create sitemap
@@ -142,21 +90,27 @@ func main() {
 
 			for _, link := range chunkedData[0] {
 				sm.Add(&sitemap.URL{
-					Loc:        config.BaseUrl + link,
+					Loc:        conf.GetBaseUrl() + link,
 					LastMod:    &now,
 					ChangeFreq: sitemap.Daily,
 				})
 
 			}
 
-			file, e := os.Create(sitemapPath + "/sitemap.xml")
-			if e != nil {
-				panic(e)
+			file, err := os.Create(sitemapPath + "/sitemap.xml")
+			if err != nil {
+				utility.Exit(err)
 			}
 
-			defer file.Close()
 			sm.WriteTo(file)
+			file.Close()
 		}
+
+		logger.Log("[main] done with '%s'", conf.GetBaseUrl())
 	}
 
+	select {
+	case <-time.After(1 * time.Second):
+		utility.Finish("[main] exit")
+	}
 }
