@@ -24,6 +24,7 @@ func main() {
 
 	now := time.Now().Local()
 	for _, conf := range configs {
+		startTime := time.Now()
 		crawler, err := webcrawler.NewWebCrawler(conf.GetBaseUrl(), conf.GetFilterRules())
 		if err != nil {
 			utility.Exit(err)
@@ -106,7 +107,9 @@ func main() {
 			file.Close()
 		}
 
-		logger.Log("[main] done with '%s'", conf.GetBaseUrl())
+		endTime := time.Now()
+		duration := endTime.Sub(startTime)
+		logger.Log("[main] done in %s with '%s'", duration, conf.GetBaseUrl())
 	}
 
 	select {
