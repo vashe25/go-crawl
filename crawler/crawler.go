@@ -7,6 +7,7 @@ import (
 	"go-crawl/logger"
 	"net/http"
 	str "strings"
+	"sync"
 )
 
 type WebCrawler struct {
@@ -56,15 +57,16 @@ func (_this *WebCrawler) Run() {
 		closeBuffer   chan struct{}
 	)
 
+	workers := 4
 	loadPageCh = make(chan string, 1)
-	processUrlsCh = make(chan map[string]string, 1)
+	processUrlsCh = make(chan map[string]string, workers)
 	bufferCh = make(chan string, 1)
 	closeBuffer = make(chan struct{})
 
 	logger.Log("[c] start goroutines")
 	go _this.getFromBufferTo(loadPageCh, closeBuffer)
 	go _this.putToBufferFrom(bufferCh, closeBuffer)
-	go _this.loadPages(loadPageCh, processUrlsCh)
+	go _this.loadPagesPool(workers, loadPageCh, processUrlsCh)
 	go _this.processUrls(processUrlsCh, bufferCh)
 	logger.Log("[c] put first url into loadPageCh")
 	_this.vlt.addToQueue("/")
@@ -75,12 +77,22 @@ func (_this *WebCrawler) Run() {
 	logger.Log("[c] stop goroutines")
 }
 
-func (_this *WebCrawler) loadPages(ch1 <-chan string, ch2 chan<- map[string]string) {
+func (_this *WebCrawler) loadPagesPool(workers int, ch1 <-chan string, ch2 chan<- map[string]string) {
 	defer close(_this.stop)
 	defer close(ch2)
+
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for ; workers > 0; workers-- {
+		go _this.loadPageWorker(ch1, ch2, &wg)
+	}
+	wg.Wait()
+}
+
+func (_this *WebCrawler) loadPageWorker(ch1 <-chan string, ch2 chan<- map[string]string, wg *sync.WaitGroup) {
 	for url := range ch1 {
 		if _this.vlt.isVisited(url) {
-			logger.Log("[c] [loadPages] VISITED: '%s'", url)
+			logger.Log("[c] [loadPageWorker] VISITED: '%s'", url)
 		}
 
 		_this.vlt.addVisited(url)
@@ -94,10 +106,11 @@ func (_this *WebCrawler) loadPages(ch1 <-chan string, ch2 chan<- map[string]stri
 		response.Body.Close()
 
 		if urls != nil {
-			logger.Log("[c] [loadPages] send bunch '%v' of urls to [processUrls]", len(urls))
+			logger.Log("[c] [loadPageWorker] send bunch '%v' of urls to [processUrls]", len(urls))
 			ch2 <- urls
 		}
 	}
+	wg.Done()
 }
 
 func (_this *WebCrawler) putToBufferFrom(ch1 <-chan string, closeBuffer chan<- struct{}) {
