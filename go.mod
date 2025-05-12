@@ -7,7 +7,7 @@ toolchain go1.24.1
 require (
 	github.com/PuerkitoBio/goquery v1.10.2
 	github.com/snabb/sitemap v1.0.4
-	github.com/vashe25/queue v0.0.0-20250309172911-e9bc8a0368ae
+	github.com/vashe25/queue v1.0.0
 )
 
 require (
