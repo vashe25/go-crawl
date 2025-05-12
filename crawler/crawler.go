@@ -63,18 +63,15 @@ func (_this *WebCrawler) Run() {
 	bufferCh = make(chan string, 1)
 	closeBuffer = make(chan struct{})
 
-	logger.Log("[c] start goroutines")
 	go _this.getFromBufferTo(loadPageCh, closeBuffer)
 	go _this.putToBufferFrom(bufferCh, closeBuffer)
 	go _this.loadPagesPool(workers, loadPageCh, processUrlsCh)
 	go _this.processUrls(processUrlsCh, bufferCh)
-	logger.Log("[c] put first url into loadPageCh")
 	_this.vlt.addToQueue("/")
 	loadPageCh <- "/"
 
 	// lock until the end
 	<-_this.stop
-	logger.Log("[c] stop goroutines")
 }
 
 func (_this *WebCrawler) loadPagesPool(workers int, ch1 <-chan string, ch2 chan<- map[string]string) {
@@ -91,10 +88,6 @@ func (_this *WebCrawler) loadPagesPool(workers int, ch1 <-chan string, ch2 chan<
 
 func (_this *WebCrawler) loadPageWorker(ch1 <-chan string, ch2 chan<- map[string]string, wg *sync.WaitGroup) {
 	for url := range ch1 {
-		if _this.vlt.isVisited(url) {
-			logger.Log("[c] [loadPageWorker] VISITED: '%s'", url)
-		}
-
 		_this.vlt.addVisited(url)
 		response := _this.loadPage(url)
 		if response == nil {
@@ -106,7 +99,6 @@ func (_this *WebCrawler) loadPageWorker(ch1 <-chan string, ch2 chan<- map[string
 		response.Body.Close()
 
 		if urls != nil {
-			logger.Log("[c] [loadPageWorker] send bunch '%v' of urls to [processUrls]", len(urls))
 			ch2 <- urls
 		}
 	}
@@ -116,7 +108,6 @@ func (_this *WebCrawler) loadPageWorker(ch1 <-chan string, ch2 chan<- map[string
 func (_this *WebCrawler) putToBufferFrom(ch1 <-chan string, closeBuffer chan<- struct{}) {
 	defer close(closeBuffer)
 	for url := range ch1 {
-		logger.Log("[c] [putToBufferFrom] -> '%s'", url)
 		_this.loadQueue.Push(queue.NewTask(url))
 	}
 	closeBuffer <- struct{}{}
@@ -130,15 +121,12 @@ func (_this *WebCrawler) getFromBufferTo(ch1 chan<- string, closeBuffer <-chan s
 			for _this.loadQueue.Length() != 0 {
 				url := _this.loadQueue.Pop().Value().(string)
 				ch1 <- url
-				logger.Log("[c] [getFromBufferTo] pop '%s'", url)
 			}
-			logger.Log("[c] [getFromBufferTo] closing empty queue")
 			return
 		default:
 			if _this.loadQueue.Length() != 0 {
 				url := _this.loadQueue.Pop().Value().(string)
 				ch1 <- url
-				logger.Log("[c] [getFromBufferTo] pop '%s'", url)
 			}
 		}
 	}
@@ -147,7 +135,6 @@ func (_this *WebCrawler) getFromBufferTo(ch1 chan<- string, closeBuffer <-chan s
 func (_this *WebCrawler) processUrls(ch1 <-chan map[string]string, bufferCh chan<- string) {
 	defer close(bufferCh)
 	for urls := range ch1 {
-		logger.Log("[c] [processUrls] processing '%v' bunch of urls", len(urls))
 		for url := range urls {
 			url = _this.sanitizeURL(url)
 			if _this.isSkipURL(url) {
@@ -161,11 +148,9 @@ func (_this *WebCrawler) processUrls(ch1 <-chan map[string]string, bufferCh chan
 			}
 			_this.vlt.addToQueue(url)
 			bufferCh <- url
-			logger.Log("[c] [processUrls] sending url to bufferCh '%s'", url)
 		}
 
 		if _this.vlt.isFull() {
-			logger.Log("[c] [processUrls] vault is full")
 			break
 		}
 	}
@@ -234,7 +219,6 @@ func (_this *WebCrawler) loadPage(url string) *http.Response {
 func (_this *WebCrawler) parseResponse(response *http.Response) map[string]string {
 	doc, err := goquery.NewDocumentFromReader(response.Body)
 	if err != nil {
-		logger.Log("[c] [parseResponse] error: %s", err)
 		return nil
 	}
 
