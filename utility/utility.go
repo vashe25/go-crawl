@@ -12,7 +12,7 @@ func Exit(err error) {
 	os.Exit(1)
 }
 
-func Finish(format string, args ...interface{}) {
+func Finish(format string, args ...any) {
 	logger.Log(format, args...)
 	os.Exit(0)
 }

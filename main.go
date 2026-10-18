@@ -50,7 +50,7 @@ func main() {
 		if countChunks > 1 {
 			// create sitemap index
 			smi := sitemap.NewSitemapIndex()
-			for i := 0; i < countChunks; i++ {
+			for i := range countChunks {
 				smi.Add(&sitemap.URL{
 					Loc:     fmt.Sprintf("%v%vsitemap-%v.xml", conf.GetBaseUrl(), conf.GetSitemapUrlPath(), i),
 					LastMod: &now,
@@ -66,7 +66,7 @@ func main() {
 			file.Close()
 
 			// create sitemaps
-			for i := 0; i < countChunks; i++ {
+			for i := range countChunks {
 				sm := sitemap.New()
 
 				for _, link := range chunkedData[i] {
