@@ -2,13 +2,14 @@ package main
 
 import (
 	"fmt"
-	"github.com/snabb/sitemap"
 	"go-crawl/config"
 	webcrawler "go-crawl/crawler"
 	"go-crawl/logger"
 	"go-crawl/utility"
 	"os"
 	"time"
+
+	"github.com/snabb/sitemap"
 )
 
 func main() {

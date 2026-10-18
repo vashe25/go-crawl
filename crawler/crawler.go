@@ -2,12 +2,14 @@ package crawler
 
 import (
 	"fmt"
-	"github.com/PuerkitoBio/goquery"
-	"github.com/vashe25/queue"
 	"go-crawl/logger"
 	"net/http"
 	str "strings"
 	"sync"
+	"time"
+
+	"github.com/PuerkitoBio/goquery"
+	"github.com/vashe25/queue"
 )
 
 type WebCrawler struct {
