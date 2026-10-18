@@ -205,18 +205,26 @@ func (_this *WebCrawler) CheckAdditionalURL(url string) {
 }
 
 func (_this *WebCrawler) loadPage(url string) *http.Response {
-	request := _this.makeRequest(url)
-	response, err := _this.client.Do(request)
-	if err != nil {
-		logger.Log("[c] [loadPage] get url fail: '%s' reason: '%s'", url, err.Error())
-		return nil
-	} else {
-		if response.StatusCode >= 400 {
+	const maxAttempts = 3
+	for attempt := 1; ; attempt++ {
+		request := _this.makeRequest(url)
+		response, err := _this.client.Do(request)
+		retryable := false
+		if err != nil {
+			retryable = true
+			logger.Log("[c] [loadPage] get url fail: '%s' reason: '%s' (attempt %d/%d)", url, err.Error(), attempt, maxAttempts)
+		} else {
+			if response.StatusCode < 400 {
+				return response
+			}
 			response.Body.Close()
-			logger.Log("[c] [loadPage] %v '%s'", response.StatusCode, url)
+			retryable = response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= 500
+			logger.Log("[c] [loadPage] %v '%s' (attempt %d/%d)", response.StatusCode, url, attempt, maxAttempts)
+		}
+		if !retryable || attempt >= maxAttempts {
 			return nil
 		}
-		return response
+		time.Sleep(time.Duration(attempt) * time.Second)
 	}
 }
 
