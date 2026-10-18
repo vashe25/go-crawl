@@ -25,7 +25,7 @@ func main() {
 	now := time.Now().Local()
 	for _, conf := range configs {
 		startTime := time.Now()
-		crawler, err := webcrawler.NewWebCrawler(conf.GetBaseUrl(), conf.GetFilterRules())
+		crawler, err := webcrawler.NewWebCrawler(conf.GetBaseUrl(), conf.GetFilterRules(), conf.GetUserAgent())
 		if err != nil {
 			utility.Exit(err)
 		}

@@ -12,6 +12,7 @@ import (
 
 type WebCrawler struct {
 	base        string
+	userAgent   string
 	vlt         *vault
 	client      *http.Client
 	filterRules []rule
@@ -19,13 +20,14 @@ type WebCrawler struct {
 	stop        chan struct{}
 }
 
-func NewWebCrawler(base string, rules []string) (*WebCrawler, error) {
+func NewWebCrawler(base string, rules []string, userAgent string) (*WebCrawler, error) {
 	compiledRules, err := compileFilterRules(rules)
 	if err != nil {
 		return nil, err
 	}
 	return &WebCrawler{
 		base:        base,
+		userAgent:   userAgent,
 		filterRules: compiledRules,
 		vlt:         newVault(),
 		client:      &http.Client{},
@@ -246,7 +248,7 @@ func (_this *WebCrawler) makeRequest(url string) *http.Request {
 	if err != nil {
 		return nil
 	}
-	request.Header.Add("User-Agent", "GO-Crawl")
+	request.Header.Add("User-Agent", _this.userAgent)
 	return request
 }
 

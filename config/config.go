@@ -8,6 +8,7 @@ import (
 
 type config struct {
 	BaseUrl        string   `json: "baseUrl"`
+	UserAgent      string   `json: "userAgent"`
 	SitemapUrlPath string   `json: "sitemapUrlPath"`
 	SitemapPath    string   `json: "sitemapPath"`
 	GetFrom        []string `json: "getFrom"`
@@ -16,6 +17,10 @@ type config struct {
 
 func (_this *config) GetBaseUrl() string {
 	return _this.BaseUrl
+}
+
+func (_this *config) GetUserAgent() string {
+	return _this.UserAgent
 }
 
 func (_this *config) GetSitemapUrlPath() string {
